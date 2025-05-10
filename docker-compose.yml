@@ -1,0 +1,25 @@
+services:
+  orchestrator:
+    build:
+      context: calc_prl
+      dockerfile: cmd/orchestrator/Dockerfile
+    container_name: orchestrator
+    ports:
+      - "8080:8080"
+      - "5000:5000"
+    networks:
+      - calculator_network
+
+  agent:
+    build:
+      context: calc_prl
+      dockerfile: cmd/agent/Dockerfile
+    container_name: agent
+    depends_on:
+      - orchestrator
+    networks:
+      - calculator_network
+
+networks:
+  calculator_network:
+    driver: bridge
