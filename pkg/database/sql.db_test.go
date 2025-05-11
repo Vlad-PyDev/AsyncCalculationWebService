@@ -38,7 +38,6 @@ func TestUsers(t *testing.T) {
 		}
 	}
 
-	// добавление уже существующего юзера
 	u := &models.User{
 		Login:    "user1",
 		Password: "123",
@@ -48,7 +47,6 @@ func TestUsers(t *testing.T) {
 		t.Fatal("expected error, because user already exists")
 	}
 
-	// поиск пользователей по айди
 	for _, tc := range users {
 		user, err := db.SelectUserByLogin(ctx, tc.Login)
 		if err != nil {
@@ -59,7 +57,6 @@ func TestUsers(t *testing.T) {
 		}
 	}
 
-	// поиск несуществующего юзера
 	_, err = db.SelectUserByLogin(ctx, "non-existent user")
 	if err == nil {
 		t.Fatal("expected error: non-existent user, but got nothing")
