@@ -1,58 +1,55 @@
 package ast
 
-// первоначальная проверка на ошибки
-// понижает шанс пропустить ошибку в выражении
 func expErr(expression string) error {
-	len := len(expression)
-	flag := false
-	start := 0
-	end := 0
+	exprLength := len(expression)
+	hasNumber := false
+	openBrackets := 0
+	closeBrackets := 0
 
-	for i := 0; i < len; i++ {
-		curr := expression[i]
-		next := byte(0)
-		if i < len-1 {
-			next = expression[i+1]
+	for i := 0; i < exprLength; i++ {
+		currentChar := expression[i]
+		nextChar := byte(0)
+		if i < exprLength-1 {
+			nextChar = expression[i+1]
 		}
 
-		if curr == '(' {
-			start++
+		if currentChar == '(' {
+			openBrackets++
 		}
-		if curr == ')' {
-			end++
+		if currentChar == ')' {
+			closeBrackets++
 		}
-		if 48 <= curr && curr <= 57 && !flag {
-			flag = true
+		if currentChar >= '0' && currentChar <= '9' && !hasNumber {
+			hasNumber = true
 		}
 
 		switch {
-		case i == 0 && (curr == ')' || curr == '*' || curr == '+' || curr == '-' || curr == '/'):
+		case i == 0 && (currentChar == ')' || currentChar == '*' || currentChar == '+' || currentChar == '-' || currentChar == '/'):
 			return ErrOperatorFirst
-		case i == len-1 && (curr == '*' || curr == '+' || curr == '-' || curr == '/'):
+		case i == exprLength-1 && (currentChar == '*' || currentChar == '+' || currentChar == '-' || currentChar == '/'):
 			return ErrOperatorLast
-		case curr == '(' && next == ')':
+		case currentChar == '(' && nextChar == ')':
 			return ErrEmptyBrackets
-		case curr == ')' && next == '(':
+		case currentChar == ')' && nextChar == '(':
 			return ErrMergedBrackets
-		case (curr == '*' || curr == '+' || curr == '-' || curr == '/') && (next == '*' || next == '+' || next == '-' || next == '/'):
+		case (currentChar == '*' || currentChar == '+' || currentChar == '-' || currentChar == '/') && (nextChar == '*' || nextChar == '+' || nextChar == '-' || nextChar == '/'):
 			return ErrMergedOperators
-		case curr < '(' || curr > '9':
+		case currentChar < '(' || currentChar > '9':
 			return ErrWrongCharacter
-		case len <= 2:
+		case exprLength <= 2:
 			return ErrInvalidExpression
-		case curr == '/' && next == '0':
+		case currentChar == '/' && nextChar == '0':
 			return ErrDivisionByZero
 		}
 	}
 
-	// базовая проверка на корректность скобок
-	if start > end {
+	if openBrackets > closeBrackets {
 		return ErrNotClosedBracket
-	} else if end > start {
+	} else if closeBrackets > openBrackets {
 		return ErrNotOpenedBracket
 	}
 
-	if !flag {
+	if !hasNumber {
 		return ErrNoOperators
 	}
 	return nil
