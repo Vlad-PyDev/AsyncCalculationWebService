@@ -1,7 +1,7 @@
 services:
   orchestrator:
     build:
-      context: calc_prl
+      context: AsyncCalculationWebService
       dockerfile: cmd/orchestrator/Dockerfile
     container_name: orchestrator
     ports:
