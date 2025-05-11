@@ -2,6 +2,80 @@ package ast
 
 type stack []*token
 
+func rpn(tokens []*token) ([]*token, error) {
+	var tokenStack stack
+	result := make([]*token, 0)
+
+	for _, tok := range tokens {
+		switch tok.t {
+		case operand:
+			result = append(result, tok)
+
+		case operator:
+			currentPriority, err := priority(tok.val)
+			if err != nil {
+				return nil, err
+			}
+
+			for tokenStack.len() > 0 {
+				topToken := tokenStack.peek()
+				if topToken.t == openBracket {
+					break
+				}
+
+				topPriority, err := priority(topToken.val)
+				if err != nil {
+					return nil, err
+				}
+
+				if topPriority >= currentPriority {
+					poppedToken, _ := tokenStack.pop()
+					result = append(result, poppedToken)
+				} else {
+					break
+				}
+			}
+			tokenStack.push(tok)
+
+		case openBracket:
+			tokenStack.push(tok)
+
+		case closeBracket:
+			hasOpenBracket := false
+			for tokenStack.len() > 0 {
+				poppedToken, err := tokenStack.pop()
+				if err != nil {
+					return nil, ErrInvalidExpression
+				}
+				if poppedToken.t == openBracket {
+					hasOpenBracket = true
+					break
+				}
+				result = append(result, poppedToken)
+			}
+			if !hasOpenBracket {
+				return nil, ErrNotOpenedBracket
+			}
+
+		default:
+			return nil, ErrUnknownOperator
+		}
+	}
+
+	for tokenStack.len() > 0 {
+		poppedToken, err := tokenStack.pop()
+		if err != nil {
+			return nil, err
+		}
+		if poppedToken.t == openBracket {
+			return nil, ErrNotClosedBracket
+		}
+		result = append(result, poppedToken)
+	}
+
+	return result, nil
+}
+
 func (s *stack) push(t *token) {
 	*s = append(*s, t)
 }
@@ -10,9 +84,9 @@ func (s *stack) pop() (*token, error) {
 	if len(*s) == 0 {
 		return nil, ErrEmptyStack
 	}
-	t := (*s)[len(*s)-1]
+	token := (*s)[len(*s)-1]
 	*s = (*s)[:len(*s)-1]
-	return t, nil
+	return token, nil
 }
 
 func (s *stack) peek() *token {
@@ -24,81 +98,4 @@ func (s *stack) peek() *token {
 
 func (s *stack) len() int {
 	return len(*s)
-}
-
-func rpn(tokens []*token) ([]*token, error) {
-	var stack stack
-	output := make([]*token, 0)
-
-	for _, tok := range tokens {
-		switch tok.t {
-		case operand:
-			output = append(output, tok)
-
-		case operator:
-			currPriority, err := priority(tok.val)
-			if err != nil {
-				return nil, err
-			}
-
-			// извлекаем операторы с большим или равным приоритетом
-			for stack.len() > 0 {
-				top := stack.peek()
-				if top.t == openBracket {
-					break // открывающая скобка прерывает извлечение
-				}
-
-				topPriority, err := priority(top.val)
-				if err != nil {
-					return nil, err
-				}
-
-				if topPriority >= currPriority {
-					popped, _ := stack.pop()
-					output = append(output, popped)
-				} else {
-					break
-				}
-			}
-			stack.push(tok)
-
-		case openBracket:
-			stack.push(tok)
-
-		case closeBracket:
-			// извлекаем до открывающей скобки
-			found := false
-			for stack.len() > 0 {
-				popped, err := stack.pop()
-				if err != nil {
-					return nil, ErrInvalidExpression
-				}
-				if popped.t == openBracket {
-					found = true
-					break
-				}
-				output = append(output, popped)
-			}
-			if !found {
-				return nil, ErrNotOpenedBracket
-			}
-
-		default:
-			return nil, ErrUnknownOperator
-		}
-	}
-
-	// достаем оставшиеся операторы
-	for stack.len() > 0 {
-		popped, err := stack.pop()
-		if err != nil {
-			return nil, err
-		}
-		if popped.t == openBracket {
-			return nil, ErrNotClosedBracket
-		}
-		output = append(output, popped)
-	}
-
-	return output, nil
 }
