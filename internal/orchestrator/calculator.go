@@ -34,13 +34,6 @@ func StartManager() {
 	go channelsManager(managerCh)
 }
 
-// channelsManager получает пару из двух каналов, которые должны общаться между собой
-// каждый раз, когда приходит таска из канала с задачами, менеджер создает элемент в мапе,
-// где ключ - айди таски, а значение - структура со связанной друг с другом парой каналов
-// после этого он отправляет таску в общий канал со всеми тасками, чтобы хендлер взял таску и отправил ее агенту
-// каждый раз, когда приходит результат таски от агента, хендлер отправляет ее в канал менеджера
-// менеджер берет результат из канала и ищет элемент мапы с каналами по айди результата
-// если такой элемент есть - отправляет результат с канал результатов, связанный с каналом задач
 func channelsManager(chans chan channels) {
 	chanMap := make(map[int]channels)
 	mu := &sync.Mutex{}
@@ -101,13 +94,11 @@ func (e *expression) calc() (float64, error) {
 	e.fillMap(e.node)
 	var result float64
 	for {
-		// проходимся по дереву и находим ноды, у которых оба листка - числа
 		sendTasks(e.node, e.tasks, e.currTasks)
 
 		select {
 		case res := <-e.results:
 			if res.Error != "" {
-				// очищаем каналы
 				close(e.tasks)
 				close(e.results)
 
@@ -121,10 +112,9 @@ func (e *expression) calc() (float64, error) {
 			if len(e.currTasks) == 0 {
 				return result, nil
 			}
-			time.Sleep(10 * time.Millisecond) // избегаем busy loop
+			time.Sleep(10 * time.Millisecond)
 		}
 
-		// если все задачи удалены - результат получен, а значит можно завершать функцию
 		if len(e.currTasks) == 0 {
 			close(e.tasks)
 			close(e.results)
@@ -142,7 +132,6 @@ func sendTasks(node *models.AstNode, tasks chan<- *models.AstNode, currTasks map
 		return
 	}
 
-	// проверяем, что узел не обработан, а его листья - числа
 	if node.Left != nil && node.Right != nil &&
 		node.Left.AstType == "number" && node.Right.AstType == "number" {
 		if node, exists := currTasks[node.ID]; exists && !node.Counting {
@@ -151,7 +140,6 @@ func sendTasks(node *models.AstNode, tasks chan<- *models.AstNode, currTasks map
 		}
 	}
 
-	// пост-ордер для отправки всех готовых тасков агенту
 	sendTasks(node.Left, tasks, currTasks)
 	sendTasks(node.Right, tasks, currTasks)
 }
@@ -161,21 +149,15 @@ func (e *expression) fillMap(node *models.AstNode) {
 		return
 	}
 
-	// заполняем мапу, где ключ - айди ноды, а значение - сама нода
 	mu.Lock()
 	e.currTasks[node.ID] = node
 	mu.Unlock()
 
-	// обходим дерево методом пост-ордера
 	e.fillMap(node.Left)
 	e.fillMap(node.Right)
 }
 
 func (e *expression) deleteAndUpdate(res models.Result) float64 {
-	// когда мы получаем результат ноды, мы удаляем ее листья, а потом меняем ноду на число для дальнейших вычислений
-	// так как мапа ссылается на ноду, то, взаимодействуя с элементом мапы, мы напрямую взаимодействуем с нодой
-
-	// проверяем, можно ли обращаться к листьям ноды для их удаления
 	node, exists := e.currTasks[res.ID]
 	if !exists || node.Left == nil || node.Right == nil {
 		return 0
@@ -193,7 +175,6 @@ func (e *expression) deleteAndUpdate(res models.Result) float64 {
 	node.Right = nil
 	log.Printf("Updated node with id %d", node.ID)
 
-	// простая обработка финального значения выражения
 	if len(e.currTasks) == 1 {
 		result, _ := strconv.ParseFloat(node.Value, 64)
 		delete(e.currTasks, res.ID)
