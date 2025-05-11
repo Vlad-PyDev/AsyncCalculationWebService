@@ -374,7 +374,7 @@ JWT_SECRET=your-secret-key    # Секретный ключ для подпис�
      curl --location 'localhost:8080/api/v1/register' \
      --header 'Content-Type: application/json' \
      --data '{
-       "login": "vedsatt",
+       "login": "vladpypy",
        "password": "123"
      }'
      ```
@@ -384,7 +384,7 @@ JWT_SECRET=your-secret-key    # Секретный ключ для подпис�
      curl --location 'localhost:8080/api/v1/register' \
      --header 'Content-Type: application/json' \
      --data '{
-       "login": "vedsatt",
+       "login": "vladpypy",
        "password": ""
      }'
      ```
@@ -398,7 +398,7 @@ JWT_SECRET=your-secret-key    # Секретный ключ для подпис�
      curl --location 'localhost:8080/api/v1/register' \
      --header 'Content-Type: application/json' \
      --data '{
-       "login": "vedsatt",
+       "login": "vladpypy",
        "password": "123"
      }'
      ```
@@ -414,7 +414,7 @@ JWT_SECRET=your-secret-key    # Секретный ключ для подпис�
      curl --location 'localhost:8080/api/v1/login' \
      --header 'Content-Type: application/json' \
      --data '{
-       "login": "vedsatt",
+       "login": "vladpypy",
        "password": "123"
      }'
      ```
@@ -428,7 +428,7 @@ JWT_SECRET=your-secret-key    # Секретный ключ для подпис�
      curl --location 'localhost:8080/api/v1/login' \
      --header 'Content-Type: application/json' \
      --data '{
-       "login": "vedsatt",
+       "login": "vladpypy",
        "password": ""
      }'
      ```
