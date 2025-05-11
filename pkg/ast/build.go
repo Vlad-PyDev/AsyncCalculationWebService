@@ -1,7 +1,5 @@
 package ast
 
-// модуль, преобразующий строку-выражение в ast
-
 import (
 	"strings"
 	"sync"
@@ -16,24 +14,24 @@ var (
 func Build(expression string) (*models.AstNode, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	expression = strings.ReplaceAll(expression, " ", "") // избавляемся от пробелов
 
-	err := expErr(expression)
+	cleanedExpression := strings.ReplaceAll(expression, " ", "")
+
+	if err := expErr(cleanedExpression); err != nil {
+		return nil, err
+	}
+
+	tokenList := tokens(cleanedExpression)
+
+	rpnTokens, err := rpn(tokenList)
 	if err != nil {
 		return nil, err
 	}
 
-	tokens := tokens(expression)
-
-	rpn, err := rpn(tokens)
+	rootNode, err := ast(rpnTokens)
 	if err != nil {
 		return nil, err
 	}
 
-	astRoot, err := ast(rpn)
-	if err != nil {
-		return nil, err
-	}
-
-	return astRoot, nil
+	return rootNode, nil
 }
