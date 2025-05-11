@@ -9,20 +9,17 @@ import (
 	"time"
 )
 
-// Config представляет конфигурацию
 type Config struct {
-	TimeAddition        time.Duration // время для сложения
-	TimeSubtraction     time.Duration // время для вычитания
-	TimeMultiplication  time.Duration // время для умножения
-	TimeDivision        time.Duration // время для деления
-	ComputingPower      int           // вычислительная мощность
-	OrchestratorAddress string        // адресс для gRPC подключения к оркестратору
+	TimeAddition        time.Duration
+	TimeSubtraction     time.Duration
+	TimeMultiplication  time.Duration
+	TimeDivision        time.Duration
+	ComputingPower      int
+	OrchestratorAddress string
 }
 
-// LoadConfig загружает конфигурацию из файла .env или использует значения по умолчанию
 func LoadConfig() Config {
-	// значения по умолчанию
-	cfg := Config{
+	config := Config{
 		TimeAddition:        2000 * time.Millisecond,
 		TimeSubtraction:     2000 * time.Millisecond,
 		TimeMultiplication:  3000 * time.Millisecond,
@@ -31,61 +28,56 @@ func LoadConfig() Config {
 		OrchestratorAddress: "localhost:5000",
 	}
 
-	// Открываем файл .env
-	file, err := os.Open(".env")
+	envFile, err := os.Open(".env")
 	if err != nil {
-		log.Println("File .env not found. Using default values.")
-		return cfg
+		log.Println("Unable to open .env file. Applying default configuration.")
+		return config
 	}
-	defer file.Close()
+	defer envFile.Close()
 
-	// Читаем файл построчно
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Пропускаем пустые строки и комментарии
-		if len(line) == 0 || strings.HasPrefix(line, "#") {
+	fileScanner := bufio.NewScanner(envFile)
+	for fileScanner.Scan() {
+		configLine := fileScanner.Text()
+		if len(configLine) == 0 || strings.HasPrefix(configLine, "#") {
 			continue
 		}
-		// Разделяем строку на ключ и значение
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
+
+		configParts := strings.SplitN(configLine, "=", 2)
+		if len(configParts) != 2 {
 			continue
 		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
+		configKey := strings.TrimSpace(configParts[0])
+		configValue := strings.TrimSpace(configParts[1])
 
-		// Присваиваем значения в зависимости от ключа
-		switch key {
+		switch configKey {
 		case "TIME_ADDITION_MS":
-			if v, err := strconv.Atoi(value); err == nil && v > 0 {
-				cfg.TimeAddition = time.Duration(v) * time.Millisecond
+			if parsedValue, err := strconv.Atoi(configValue); err == nil && parsedValue > 0 {
+				config.TimeAddition = time.Duration(parsedValue) * time.Millisecond
 			}
 		case "TIME_SUBTRACTION_MS":
-			if v, err := strconv.Atoi(value); err == nil && v > 0 {
-				cfg.TimeSubtraction = time.Duration(v) * time.Millisecond
+			if parsedValue, err := strconv.Atoi(configValue); err == nil && parsedValue > 0 {
+				config.TimeSubtraction = time.Duration(parsedValue) * time.Millisecond
 			}
 		case "TIME_MULTIPLICATIONS_MS":
-			if v, err := strconv.Atoi(value); err == nil && v > 0 {
-				cfg.TimeMultiplication = time.Duration(v) * time.Millisecond
+			if parsedValue, err := strconv.Atoi(configValue); err == nil && parsedValue > 0 {
+				config.TimeMultiplication = time.Duration(parsedValue) * time.Millisecond
 			}
 		case "TIME_DIVISIONS_MS":
-			if v, err := strconv.Atoi(value); err == nil && v > 0 {
-				cfg.TimeDivision = time.Duration(v) * time.Millisecond
+			if parsedValue, err := strconv.Atoi(configValue); err == nil && parsedValue > 0 {
+				config.TimeDivision = time.Duration(parsedValue) * time.Millisecond
 			}
 		case "COMPUTING_POWER":
-			if v, err := strconv.Atoi(value); err == nil && v > 0 {
-				cfg.ComputingPower = v
+			if parsedValue, err := strconv.Atoi(configValue); err == nil && parsedValue > 0 {
+				config.ComputingPower = parsedValue
 			}
 		case "ORCHESTRATOR_ADDRESS":
-			cfg.OrchestratorAddress = value
+			config.OrchestratorAddress = configValue
 		}
 	}
 
-	// Проверяем ошибки сканера
-	if err := scanner.Err(); err != nil {
-		log.Println("Error reading .env file:", err)
+	if scanErr := fileScanner.Err(); scanErr != nil {
+		log.Println("Failed to read .env file:", scanErr)
 	}
 
-	return cfg
+	return config
 }
