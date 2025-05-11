@@ -85,7 +85,6 @@ func NewDB() *SqlDB {
 	}
 }
 
-// создаем нового пользователя
 func (db *SqlDB) InsertUser(ctx context.Context, user *models.User) (int64, error) {
 	var q = `
 	INSERT INTO users (login, password) values ($1, $2)
@@ -105,7 +104,6 @@ func (db *SqlDB) InsertUser(ctx context.Context, user *models.User) (int64, erro
 	return id, nil
 }
 
-// формируем новое выражение и получаем его айди
 func (db *SqlDB) InsertExpression(ctx context.Context, expression *models.Expression, userID int) (int64, error) {
 	var q = `
 	INSERT INTO expressions (expression, user_id, status, result) values ($1, $2, $3, $4)
@@ -125,7 +123,6 @@ func (db *SqlDB) InsertExpression(ctx context.Context, expression *models.Expres
 	return id, nil
 }
 
-// получаем все выражения конкретного пользователя, формат - json файл с массивом json выражений
 func (db *SqlDB) SelectExpressions(ctx context.Context, userID int) ([]byte, error) {
 	var expressions []models.Expression
 	var q = "SELECT id, expression, status, result FROM expressions WHERE user_id = $1"
@@ -160,7 +157,6 @@ func (db *SqlDB) SelectExpressions(ctx context.Context, userID int) ([]byte, err
 	return jsonData, nil
 }
 
-// находим конкретного пользователя по логину
 func (db *SqlDB) SelectUserByLogin(ctx context.Context, login string) (models.User, error) {
 	u := models.User{}
 	var q = "SELECT id, login, password FROM users WHERE login = $1"
@@ -171,7 +167,6 @@ func (db *SqlDB) SelectUserByLogin(ctx context.Context, login string) (models.Us
 	return u, nil
 }
 
-// находим конкретное выражение
 func (db *SqlDB) SelectExprByID(ctx context.Context, id, userID int) (models.Expression, error) {
 	e := models.Expression{}
 	var q = "SELECT id, expression, status, result FROM expressions WHERE id = $1 AND user_id = $2"
@@ -183,7 +178,6 @@ func (db *SqlDB) SelectExprByID(ctx context.Context, id, userID int) (models.Exp
 	return e, nil
 }
 
-// обновляем результат и статус выражения по айди
 func (db *SqlDB) UpdateExpression(ctx context.Context, id int, status string, result float64) error {
 	var q = "UPDATE expressions SET status = $1, result = $2 WHERE id = $3"
 	res, err := db.Store.ExecContext(ctx, q, status, result, id)
