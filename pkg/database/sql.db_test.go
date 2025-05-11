@@ -47,6 +47,7 @@ func TestUsers(t *testing.T) {
 		t.Fatal("expected error, because user already exists")
 	}
 
+	// поиск пользователей по айди
 	for _, tc := range users {
 		user, err := db.SelectUserByLogin(ctx, tc.Login)
 		if err != nil {
