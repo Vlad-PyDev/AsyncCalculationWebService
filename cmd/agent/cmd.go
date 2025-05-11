@@ -6,8 +6,8 @@ import (
 )
 
 func main() {
-	cfg := config.LoadConfig()
+	config_ := config.LoadConfig()
 
-	agent := agent.New(cfg)
+	agent := agent.New(config_)
 	agent.Run()
 }
