@@ -21,18 +21,31 @@ type Server struct {
 	mu sync.Mutex
 }
 
-func NewServer() *Server {
-	return &Server{mu: sync.Mutex{}}
+func runGRPC() {
+	log.Println("Initializing TCP server...")
+	listener, err := net.Listen(tcp, addr)
+	if err != nil {
+		log.Fatalf("failed to start TCP server: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterOrchestratorServer(grpcServer, NewServer())
+
+	log.Printf("TCP server running on: %v", listener.Addr())
+	if err := grpcServer.Serve(listener); err != nil {
+		log.Fatalf("gRPC server failed: %v", err)
+	}
 }
 
 func (s *Server) Calculate(stream pb.Orchestrator_CalculateServer) error {
-	log.Println("agent connected to gRPC server")
-	defer log.Println("agent disconnected")
+	log.Println("gRPC agent connected")
+	defer log.Println("gRPC agent disconnected")
+
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
-	done := make(chan struct{})
-	defer close(done)
+	completion := make(chan struct{})
+	defer close(completion)
 
 	go func() {
 		defer cancel()
@@ -49,12 +62,12 @@ func (s *Server) Calculate(stream pb.Orchestrator_CalculateServer) error {
 				s.mu.Unlock()
 
 				if err != nil {
-					log.Printf("Failed to send task: %v", err)
+					log.Printf("Error sending task: %v", err)
 					return
 				}
 			case <-ctx.Done():
 				return
-			case <-done:
+			case <-completion:
 				return
 			}
 		}
@@ -67,15 +80,15 @@ func (s *Server) Calculate(stream pb.Orchestrator_CalculateServer) error {
 			case <-ctx.Done():
 				return
 			default:
-				res, err := stream.Recv()
+				response, err := stream.Recv()
 				if err != nil {
-					log.Printf("Receive error: %v", err)
+					log.Printf("Error receiving response: %v", err)
 					return
 				}
 				resultsCh <- models.Result{
-					ID:     int(res.Id),
-					Result: float64(res.Result),
-					Error:  res.Error,
+					ID:     int(response.Id),
+					Result: float64(response.Result),
+					Error:  response.Error,
 				}
 			}
 		}
@@ -85,18 +98,6 @@ func (s *Server) Calculate(stream pb.Orchestrator_CalculateServer) error {
 	return nil
 }
 
-func runGRPC() {
-	log.Println("Starting tcp server...")
-	lis, err := net.Listen(tcp, addr)
-	if err != nil {
-		log.Fatalf("error starting tcp server: %v", err)
-	}
-
-	grpcServer := grpc.NewServer()
-	pb.RegisterOrchestratorServer(grpcServer, NewServer())
-
-	log.Printf("tcp server started at: %v", lis.Addr())
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("error serving grpc: %v", err)
-	}
+func NewServer() *Server {
+	return &Server{mu: sync.Mutex{}}
 }
