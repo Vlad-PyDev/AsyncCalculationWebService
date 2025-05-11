@@ -23,18 +23,17 @@ var (
 	tasksCh   = make(chan *Task)
 )
 
-func New(cfg config.Config) *Agent {
-	// передаем конфиг с переменными средами в агента
-	return &Agent{config: cfg}
-}
-
 func (a *Agent) Run() {
 	go a.Connect()
 
 	for i := range a.config.ComputingPower {
-		log.Printf("worker %d starting...", i+1)
+		log.Printf("Starting worker %d...", i+1)
 		go worker(a.config)
 	}
 
-	select {} // бесконечное ожидание
+	select {}
+}
+
+func New(cfg config.Config) *Agent {
+	return &Agent{config: cfg}
 }
