@@ -16,145 +16,89 @@ import (
 	"github.com/Vlad-PyDev/AsyncCalculationWebService/pkg/crypto/password"
 )
 
-func logsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Method: %s, URL: %s", r.Method, r.URL)
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		duration := time.Since(start)
-		log.Printf("Method: %s, completion time: %v", r.Method, duration)
-	})
-}
-
-func authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var token string
-		cookie, err := r.Cookie("jwt")
-		if checkCookie(cookie, err) {
-			token = cookie.Value
-			log.Print("token was taken from cookie")
-		} else {
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				errorResponse(w, "authorization is required", http.StatusUnauthorized)
-				log.Printf("Code: %v, user unauthorized", http.StatusUnauthorized)
-				return
-			}
-
-			tokenParts := strings.Split(authHeader, " ")
-			if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-				errorResponse(w, "invalid token format", http.StatusUnauthorized)
-				log.Printf("Code: %v, invalid token format", http.StatusUnauthorized)
-				return
-			}
-			token = tokenParts[1]
-			log.Print("token was taken from header")
-		}
-
-		claims, id := jwt.Verify(token)
-		if !claims {
-			errorResponse(w, "invalid token", http.StatusUnauthorized)
-			log.Printf("Code: %v, invalid token", http.StatusUnauthorized)
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), userID, id)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func databaseMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			errorResponse(w, "invalid request method", http.StatusMethodNotAllowed)
-			log.Printf("Code: %v, Invalid request method", http.StatusMethodNotAllowed)
-			return
-		}
-
-		var body ExpressionReq
-		err := json.NewDecoder(r.Body).Decode(&body)
+func GetDataHandler(w http.ResponseWriter, r *http.Request) {
+	expressionID := "-1"
+	expressionID = strings.TrimPrefix(r.URL.Path, "/api/v1/expressions/")
+	if checkId(expressionID) {
+		idValue, err := strconv.Atoi(expressionID)
 		if err != nil {
+			errMsg := fmt.Sprintf("%s", err)
 			errorResponse(w, "internal server error", http.StatusInternalServerError)
-			log.Printf("Code: %v, error with decoding request body", http.StatusInternalServerError)
+			log.Printf("Code: %v, %s", http.StatusInternalServerError, errMsg)
 			return
 		}
 
-		// добавляем выражение в базу данных и получаем id
-		log.Printf("Adding expression to database")
-		e := &models.Expression{
-			Expression: body.Expression,
-			Status:     "in process",
-			Result:     0.0,
-		}
-		expID, err := db.InsertExpression(r.Context(), e, r.Context().Value(userID).(int))
+		userIDValue := r.Context().Value(userID)
+		expressionData, err := db.SelectExprByID(r.Context(), idValue, userIDValue.(int))
 		if err != nil {
-			errorResponse(w, "internal server error", http.StatusInternalServerError)
-			log.Printf("Code: %v, error with database", http.StatusInternalServerError)
+			errorResponse(w, "expression does not exist", http.StatusNotFound)
+			log.Printf("Code: %v, %s", http.StatusNotFound, err)
 			return
 		}
-		respID := RespID{Id: int(expID)}
 
-		w.WriteHeader(http.StatusCreated)
+		var jsonOutput []byte
+		jsonOutput, err = json.MarshalIndent(expressionData, "", "  ")
+		if err != nil {
+			errorResponse(w, fmt.Sprintf("%s", err), http.StatusInternalServerError)
+			log.Printf("Code: %v, error marshaling JSON", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(respID)
+		_, err = w.Write(jsonOutput)
+		if err != nil {
+			errorResponse(w, "error with JSON data", http.StatusInternalServerError)
+			log.Printf("Code: %v, internal server error", http.StatusInternalServerError)
+			return
+		}
+		return
+	}
 
-		// запускаем вычисления в фоновом режиме
-		go func() {
-			expr := &Expression{
-				exp: body.Expression,
-				id:  int(expID),
-			}
-			ctx := context.WithValue(r.Context(), ctxKey, expr)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		}()
-	})
+	expressions, err := db.SelectExpressions(r.Context(), r.Context().Value(userID).(int))
+	if err != nil {
+		errorResponse(w, "you haven't calculated any expressions yet", http.StatusInternalServerError)
+		log.Printf("Code: %v, no expressions for user %v", http.StatusInternalServerError, userID)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write([]byte(expressions))
+	if err != nil {
+		errorResponse(w, "error with JSON data", http.StatusInternalServerError)
+		log.Printf("Code: %v, internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
-func RegisterHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		errorResponse(w, "invalid request method", http.StatusMethodNotAllowed)
-		log.Printf("Code: %v, invalid request method", http.StatusMethodNotAllowed)
-		return
-	}
+func ExpressionHandler(w http.ResponseWriter, r *http.Request) {
+	expressionData := r.Context().Value(ctxKey).(*Expression)
 
-	var body struct {
-		Login    string `json:"login"`
-		Password string `json:"password"`
-	}
-	err := json.NewDecoder(r.Body).Decode(&body)
+	astNode, err := ast.Build(expressionData.exp)
 	if err != nil {
-		errorResponse(w, "invalid request body", http.StatusBadRequest)
-		log.Printf("Code: %v, json decoding error", http.StatusBadRequest)
+		errorMsg := fmt.Sprintf("%s", err)
+		log.Printf("Expression %d: failed to build AST - %s", expressionData.id, errorMsg)
+		if err := db.UpdateExpression(context.Background(), expressionData.id, errorMsg, 0.0); err != nil {
+			log.Printf("Failed to update expression %d: %v", expressionData.id, err)
+		}
 		return
 	}
+	expressionProcessor := NewExpression(astNode)
 
-	if len(body.Password) == 0 {
-		errorResponse(w, "password cannot be empty", http.StatusForbidden)
-		log.Printf("Code: %v, empty password", http.StatusForbidden)
-		return
-	}
-
-	pass, err := password.Generate(body.Password)
+	resultValue, err := expressionProcessor.calc()
 	if err != nil {
-		errorResponse(w, "internal server error", http.StatusInternalServerError)
-		log.Printf("Code: %v, %s", http.StatusInternalServerError, err)
+		log.Printf("Expression %v: division by zero detected", expressionData.id)
+		if err := db.UpdateExpression(context.Background(), expressionData.id, "zero division error", 0.0); err != nil {
+			log.Printf("Failed to update expression %d: %v", expressionData.id, err)
+		}
 		return
 	}
+	log.Printf("Expression %v computed successfully", expressionData.id)
 
-	ctx := r.Context()
-	user := &models.User{
-		Login:    body.Login,
-		Password: pass,
+	if err := db.UpdateExpression(context.Background(), expressionData.id, "done", resultValue); err != nil {
+		log.Printf("Failed to update expression %d: %v", expressionData.id, err)
 	}
-	_, err = db.InsertUser(ctx, user)
-	if err != nil {
-		errorResponse(w, "user already exists", http.StatusConflict)
-		log.Printf("Code: %v, user %s already exists", http.StatusConflict, body.Login)
-		return
-	}
-
-	log.Printf("user: %v has successfully registered", user.Login)
-	w.WriteHeader(http.StatusOK)
 }
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
@@ -164,138 +108,190 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
+	var requestBody struct {
 		Login    string `json:"login"`
 		Password string `json:"password"`
 	}
-	err := json.NewDecoder(r.Body).Decode(&body)
+	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
 		errorResponse(w, "invalid request body", http.StatusBadRequest)
-		log.Printf("Code: %v, json decoding error", http.StatusBadRequest)
+		log.Printf("Code: %v, JSON decoding error", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
-	user, err := db.SelectUserByLogin(ctx, body.Login)
+	userData, err := db.SelectUserByLogin(ctx, requestBody.Login)
 	if err != nil {
-		errorResponse(w, "user not fuond", http.StatusNotFound)
-		log.Printf("Code: %v, user %v was not found", http.StatusNotFound, body.Login)
+		errorResponse(w, "user not found", http.StatusNotFound)
+		log.Printf("Code: %v, user %v not found", http.StatusNotFound, requestBody.Login)
 		return
 	}
-	if err := password.Compare(user.Password, body.Password); err != nil {
+	if err := password.Compare(userData.Password, requestBody.Password); err != nil {
 		errorResponse(w, "incorrect password", http.StatusForbidden)
 		log.Printf("Code: %v, incorrect password", http.StatusForbidden)
 		return
 	}
 
-	var resp struct {
+	var response struct {
 		Jwt string `json:"jwt"`
 	}
-	token, err := jwt.Generate(int(user.ID))
+	tokenValue, err := jwt.Generate(int(userData.ID))
 	if err != nil {
 		errorResponse(w, "internal server error", http.StatusInternalServerError)
-		log.Printf("Code: %v, error with generating token", http.StatusInternalServerError)
+		log.Printf("Code: %v, token generation error", http.StatusInternalServerError)
 		return
 	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "jwt",
-		Value:    token,
+		Value:    tokenValue,
 		Expires:  time.Now().Add(10 * time.Minute),
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	resp.Jwt = token
+	response.Jwt = tokenValue
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(response)
 }
 
-func ExpressionHandler(w http.ResponseWriter, r *http.Request) {
-	expr := r.Context().Value(ctxKey).(*Expression)
-
-	// создаем аст по выражению
-	astRoot, err := ast.Build(expr.exp)
-	if err != nil {
-		errStr := fmt.Sprintf("%s", err)
-
-		log.Printf("Expression %d: AST build failed - %s", expr.id, errStr)
-		if err := db.UpdateExpression(context.Background(), expr.id, errStr, 0.0); err != nil {
-			log.Printf("Failed to update expression %d: %v", expr.id, err)
-		}
+func RegisterHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		errorResponse(w, "invalid request method", http.StatusMethodNotAllowed)
+		log.Printf("Code: %v, invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
-	exp := NewExpression(astRoot)
 
-	res, err := exp.calc()
+	var requestBody struct {
+		Login    string `json:"login"`
+		Password string `json:"password"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
-		log.Printf("Expression %v: zero division error detected", expr.id)
-		if err := db.UpdateExpression(context.Background(), expr.id, "zero division error", 0.0); err != nil {
-			log.Printf("Failed to update expression %d: %v", expr.id, err)
-		}
+		errorResponse(w, "invalid request body", http.StatusBadRequest)
+		log.Printf("Code: %v, JSON decoding error", http.StatusBadRequest)
 		return
 	}
-	log.Printf("Expression %v calculated sucsessfully", expr.id)
 
-	if err := db.UpdateExpression(context.Background(), expr.id, "done", res); err != nil {
-		log.Printf("Failed to update expression %d: %v", expr.id, err)
+	if len(requestBody.Password) == 0 {
+		errorResponse(w, "password cannot be empty", http.StatusForbidden)
+		log.Printf("Code: %v, empty password", http.StatusForbidden)
+		return
 	}
+
+	hashedPassword, err := password.Generate(requestBody.Password)
+	if err != nil {
+		errorResponse(w, "internal server error", http.StatusInternalServerError)
+		log.Printf("Code: %v, %s", http.StatusInternalServerError, err)
+		return
+	}
+
+	ctx := r.Context()
+	newUser := &models.User{
+		Login:    requestBody.Login,
+		Password: hashedPassword,
+	}
+	_, err = db.InsertUser(ctx, newUser)
+	if err != nil {
+		errorResponse(w, "user already exists", http.StatusConflict)
+		log.Printf("Code: %v, user %s already exists", http.StatusConflict, requestBody.Login)
+		return
+	}
+
+	log.Printf("user: %v registered successfully", newUser.Login)
+	w.WriteHeader(http.StatusOK)
 }
 
-func GetDataHandler(w http.ResponseWriter, r *http.Request) {
-	var id string = "-1"
-	id = strings.TrimPrefix(r.URL.Path, "/api/v1/expressions/")
-	if checkId(id) {
-		idInt, err := strconv.Atoi(id)
+func databaseMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			errorResponse(w, "invalid request method", http.StatusMethodNotAllowed)
+			log.Printf("Code: %v, invalid request method", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var requestBody ExpressionReq
+		err := json.NewDecoder(r.Body).Decode(&requestBody)
 		if err != nil {
-			errStr := fmt.Sprintf("%s", err)
 			errorResponse(w, "internal server error", http.StatusInternalServerError)
-			log.Printf("Code: %v, %s", http.StatusInternalServerError, errStr)
+			log.Printf("Code: %v, error decoding request body", http.StatusInternalServerError)
 			return
 		}
 
-		userId := r.Context().Value(userID)
-		data, err := db.SelectExprByID(r.Context(), idInt, userId.(int))
+		log.Printf("Inserting expression into database")
+		expression := &models.Expression{
+			Expression: requestBody.Expression,
+			Status:     "in process",
+			Result:     0.0,
+		}
+		expressionID, err := db.InsertExpression(r.Context(), expression, r.Context().Value(userID).(int))
 		if err != nil {
-			errorResponse(w, "expression does not exist", http.StatusNotFound)
-			log.Printf("Code: %v, %s", http.StatusNotFound, err)
+			errorResponse(w, "internal server error", http.StatusInternalServerError)
+			log.Printf("Code: %v, database error", http.StatusInternalServerError)
 			return
 		}
+		responseID := RespID{Id: int(expressionID)}
 
-		var jsonData []byte
-		jsonData, err = json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			errorResponse(w, fmt.Sprintf("%s", err), http.StatusInternalServerError)
-			log.Printf("Code: %v, error with marshaling json", http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
-		_, err = w.Write(jsonData)
-		if err != nil {
-			errorResponse(w, "error with json data", http.StatusInternalServerError)
-			log.Printf("Code: %v, Internal server error", http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(responseID)
+
+		go func() {
+			expressionCtx := &Expression{
+				exp: requestBody.Expression,
+				id:  int(expressionID),
+			}
+			updatedCtx := context.WithValue(r.Context(), ctxKey, expressionCtx)
+			next.ServeHTTP(w, r.WithContext(updatedCtx))
+		}()
+	})
+}
+
+func authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var authToken string
+		cookieData, err := r.Cookie("jwt")
+		if checkCookie(cookieData, err) {
+			authToken = cookieData.Value
+			log.Print("token retrieved from cookie")
+		} else {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				errorResponse(w, "authorization required", http.StatusUnauthorized)
+				log.Printf("Code: %v, unauthorized access", http.StatusUnauthorized)
+				return
+			}
+
+			headerParts := strings.Split(authHeader, " ")
+			if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+				errorResponse(w, "invalid token format", http.StatusUnauthorized)
+				log.Printf("Code: %v, invalid token format", http.StatusUnauthorized)
+				return
+			}
+			authToken = headerParts[1]
+			log.Print("token retrieved from header")
+		}
+
+		isValid, userIDValue := jwt.Verify(authToken)
+		if !isValid {
+			errorResponse(w, "invalid token", http.StatusUnauthorized)
+			log.Printf("Code: %v, invalid token", http.StatusUnauthorized)
 			return
 		}
-		return
-	}
 
-	data, err := db.SelectExpressions(r.Context(), r.Context().Value(userID).(int))
-	if err != nil {
-		errorResponse(w, "you haven't calculated any expressions yet", http.StatusInternalServerError)
-		log.Printf("Code: %v, empty base for user %v", http.StatusInternalServerError, userID)
-		return
-	}
+		updatedCtx := context.WithValue(r.Context(), userID, userIDValue)
+		next.ServeHTTP(w, r.WithContext(updatedCtx))
+	})
+}
 
-	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write([]byte(data))
-	if err != nil {
-		errorResponse(w, "error with json data", http.StatusInternalServerError)
-		log.Printf("Code: %v, Internal server error", http.StatusInternalServerError)
-		return
-	}
+func logsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Request Method: %s, URL: %s", r.Method, r.URL)
+		requestStart := time.Now()
+		next.ServeHTTP(w, r)
+		requestDuration := time.Since(requestStart)
+		log.Printf("Request Method: %s, completed in: %v", r.Method, requestDuration)
+	})
 }
