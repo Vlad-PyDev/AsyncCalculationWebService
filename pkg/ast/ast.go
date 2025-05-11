@@ -8,6 +8,51 @@ var (
 	id int = 0
 )
 
+func ast(tokens []*token) (*models.AstNode, error) {
+	var nodeStack []*models.AstNode
+
+	for _, tok := range tokens {
+		switch tok.t {
+		case operand:
+			newNode := &models.AstNode{
+				ID:      id,
+				AstType: "number",
+				Value:   tok.val,
+			}
+			nodeStack = append(nodeStack, newNode)
+			id++
+
+		case operator:
+			if len(nodeStack) < 2 {
+				return nil, ErrInvalidExpression
+			}
+
+			rightNode := nodeStack[len(nodeStack)-1]
+			leftNode := nodeStack[len(nodeStack)-2]
+			nodeStack = nodeStack[:len(nodeStack)-2]
+
+			newNode := &models.AstNode{
+				ID:      id,
+				AstType: "operation",
+				Value:   tok.val,
+				Left:    leftNode,
+				Right:   rightNode,
+			}
+			nodeStack = append(nodeStack, newNode)
+			id++
+
+		default:
+			return nil, ErrWrongCharacter
+		}
+	}
+
+	if len(nodeStack) != 1 {
+		return nil, ErrInvalidExpression
+	}
+
+	return nodeStack[0], nil
+}
+
 func priority(op string) (int, error) {
 	switch {
 	case op == "/" || op == "*":
@@ -19,53 +64,4 @@ func priority(op string) (int, error) {
 	default:
 		return 0, ErrUnknownOperator
 	}
-}
-
-func ast(tokens []*token) (*models.AstNode, error) {
-	var stack []*models.AstNode
-
-	for _, tok := range tokens {
-		switch tok.t {
-		case operand:
-			// создаем узел для числа
-			node := &models.AstNode{
-				ID:      id,
-				AstType: "number",
-				Value:   tok.val,
-			}
-			stack = append(stack, node)
-			id++
-
-		case operator:
-			// один оператор - два операнда
-			if len(stack) < 2 {
-				return nil, ErrInvalidExpression
-			}
-
-			// извлекаем правый и левый операнды (порядок важен)
-			right := stack[len(stack)-1]
-			left := stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-
-			// создаем новый узел операции для оператора
-			node := &models.AstNode{
-				ID:      id,
-				AstType: "operation",
-				Value:   tok.val,
-				Left:    left,
-				Right:   right,
-			}
-			stack = append(stack, node)
-			id++
-
-		default:
-			return nil, ErrWrongCharacter
-		}
-	}
-
-	if len(stack) != 1 {
-		return nil, ErrInvalidExpression
-	}
-
-	return stack[0], nil
 }
