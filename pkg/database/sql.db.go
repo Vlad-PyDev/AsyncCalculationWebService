@@ -24,6 +24,61 @@ type (
 	}
 )
 
+func (db *SqlDB) SelectExpressions(ctx context.Context, userID int) ([]byte, error) {
+	var expressions []models.Expression
+	var q = "SELECT id, expression, status, result FROM expressions WHERE user_id = $1"
+
+	rows, err := db.Store.QueryContext(ctx, q, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		e := models.Expression{}
+		err := rows.Scan(&e.ID, &e.Expression, &e.Status, &e.Result)
+		if err != nil {
+			return nil, err
+		}
+		expressions = append(expressions, e)
+	}
+
+	if len(expressions) == 0 {
+		return nil, fmt.Errorf("no expressions found for user_id=%d", userID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	jsonData, err := json.MarshalIndent(expressions, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return jsonData, nil
+}
+
+func (db *SqlDB) SelectUserByLogin(ctx context.Context, login string) (models.User, error) {
+	u := models.User{}
+	var q = "SELECT id, login, password FROM users WHERE login = $1"
+	err := db.Store.QueryRowContext(ctx, q, login).Scan(&u.ID, &u.Login, &u.Password)
+	if err != nil {
+		return u, err
+	}
+	return u, nil
+}
+
+func (db *SqlDB) SelectExprByID(ctx context.Context, id, userID int) (models.Expression, error) {
+	e := models.Expression{}
+	var q = "SELECT id, expression, status, result FROM expressions WHERE id = $1 AND user_id = $2"
+	err := db.Store.QueryRowContext(ctx, q, id, userID).Scan(&e.ID, &e.Expression, &e.Status, &e.Result)
+	if err != nil {
+		return e, err
+	}
+
+	return e, nil
+}
+
 func createTables(ctx context.Context, db *sql.DB) error {
 	const (
 		usersTable = `
@@ -51,6 +106,25 @@ func createTables(ctx context.Context, db *sql.DB) error {
 
 	if _, err := db.ExecContext(ctx, expressionsTable); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (db *SqlDB) UpdateExpression(ctx context.Context, id int, status string, result float64) error {
+	var q = "UPDATE expressions SET status = $1, result = $2 WHERE id = $3"
+	res, err := db.Store.ExecContext(ctx, q, status, result, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("expression with id=%d not found", id)
 	}
 
 	return nil
@@ -121,78 +195,4 @@ func (db *SqlDB) InsertExpression(ctx context.Context, expression *models.Expres
 	}
 
 	return id, nil
-}
-
-func (db *SqlDB) SelectExpressions(ctx context.Context, userID int) ([]byte, error) {
-	var expressions []models.Expression
-	var q = "SELECT id, expression, status, result FROM expressions WHERE user_id = $1"
-
-	rows, err := db.Store.QueryContext(ctx, q, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		e := models.Expression{}
-		err := rows.Scan(&e.ID, &e.Expression, &e.Status, &e.Result)
-		if err != nil {
-			return nil, err
-		}
-		expressions = append(expressions, e)
-	}
-
-	if len(expressions) == 0 {
-		return nil, fmt.Errorf("no expressions found for user_id=%d", userID)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	jsonData, err := json.MarshalIndent(expressions, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	return jsonData, nil
-}
-
-func (db *SqlDB) SelectUserByLogin(ctx context.Context, login string) (models.User, error) {
-	u := models.User{}
-	var q = "SELECT id, login, password FROM users WHERE login = $1"
-	err := db.Store.QueryRowContext(ctx, q, login).Scan(&u.ID, &u.Login, &u.Password)
-	if err != nil {
-		return u, err
-	}
-	return u, nil
-}
-
-func (db *SqlDB) SelectExprByID(ctx context.Context, id, userID int) (models.Expression, error) {
-	e := models.Expression{}
-	var q = "SELECT id, expression, status, result FROM expressions WHERE id = $1 AND user_id = $2"
-	err := db.Store.QueryRowContext(ctx, q, id, userID).Scan(&e.ID, &e.Expression, &e.Status, &e.Result)
-	if err != nil {
-		return e, err
-	}
-
-	return e, nil
-}
-
-func (db *SqlDB) UpdateExpression(ctx context.Context, id int, status string, result float64) error {
-	var q = "UPDATE expressions SET status = $1, result = $2 WHERE id = $3"
-	res, err := db.Store.ExecContext(ctx, q, status, result, id)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("expression with id=%d not found", id)
-	}
-
-	return nil
 }
