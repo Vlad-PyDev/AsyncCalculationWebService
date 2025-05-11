@@ -3,18 +3,18 @@ package password
 import "golang.org/x/crypto/bcrypt"
 
 func Generate(s string) (string, error) {
-	saltedBytes := []byte(s)
-	hashedBytes, err := bcrypt.GenerateFromPassword(saltedBytes, bcrypt.DefaultCost)
+	inputBytes := []byte(s)
+	encryptedBytes, err := bcrypt.GenerateFromPassword(inputBytes, bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
 
-	hash := string(hashedBytes)
-	return hash, nil
+	encryptedHash := string(encryptedBytes)
+	return encryptedHash, nil
 }
 
 func Compare(hash string, s string) error {
-	incoming := []byte(s)
-	existing := []byte(hash)
-	return bcrypt.CompareHashAndPassword(existing, incoming)
+	providedPassword := []byte(s)
+	storedHash := []byte(hash)
+	return bcrypt.CompareHashAndPassword(storedHash, providedPassword)
 }
