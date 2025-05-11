@@ -4,6 +4,13 @@ import (
 	"errors"
 )
 
+const (
+	operator     = "operator"
+	operand      = "operand"
+	openBracket  = "open bracket"
+	closeBracket = "close bracket"
+)
+
 var (
 	ErrOperatorFirst     = errors.New("the first character is the operator")
 	ErrOperatorLast      = errors.New("the last character is the operator")
@@ -18,11 +25,4 @@ var (
 	ErrDivisionByZero    = errors.New("division by zero")
 	ErrUnknownOperator   = errors.New("unknown operator")
 	ErrEmptyStack        = errors.New("stack is empty")
-)
-
-const (
-	operator     = "operator"
-	operand      = "operand"
-	openBracket  = "open bracket"
-	closeBracket = "close bracket"
 )
