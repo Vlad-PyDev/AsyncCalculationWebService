@@ -18,21 +18,21 @@ type OrchestratorClient interface {
 }
 
 type orchestratorClient struct {
-	cc grpc.ClientConnInterface
+	conn grpc.ClientConnInterface
 }
 
-func NewOrchestratorClient(cc grpc.ClientConnInterface) OrchestratorClient {
-	return &orchestratorClient{cc}
-}
-
-func (c *orchestratorClient) Calculate(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentResponse, TaskRequest], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Orchestrator_ServiceDesc.Streams[0], Orchestrator_Calculate_FullMethodName, cOpts...)
+func (c *orchestratorClient) Calculate(ctx_ context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentResponse, TaskRequest], error) {
+	callOptions := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.conn.NewStream(ctx_, &Orchestrator_ServiceDesc.Streams[0], Orchestrator_Calculate_FullMethodName, callOptions...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[AgentResponse, TaskRequest]{ClientStream: stream}
-	return x, nil
+	streamWrapper := &grpc.GenericClientStream[AgentResponse, TaskRequest]{ClientStream: stream}
+	return streamWrapper, nil
+}
+
+func NewOrchestratorClient(conn grpc.ClientConnInterface) OrchestratorClient {
+	return &orchestratorClient{conn}
 }
 
 type Orchestrator_CalculateClient = grpc.BidiStreamingClient[AgentResponse, TaskRequest]
@@ -44,25 +44,26 @@ type OrchestratorServer interface {
 
 type UnimplementedOrchestratorServer struct{}
 
-func (UnimplementedOrchestratorServer) Calculate(grpc.BidiStreamingServer[AgentResponse, TaskRequest]) error {
+func (UnimplementedOrchestratorServer) Calculate(stream grpc.BidiStreamingServer[AgentResponse, TaskRequest]) error {
 	return status.Errorf(codes.Unimplemented, "method Calculate not implemented")
 }
+
 func (UnimplementedOrchestratorServer) mustEmbedUnimplementedOrchestratorServer() {}
-func (UnimplementedOrchestratorServer) testEmbeddedByValue()                      {}
+func (UnimplementedOrchestratorServer) verifyEmbeddedByValue()                    {}
 
 type UnsafeOrchestratorServer interface {
 	mustEmbedUnimplementedOrchestratorServer()
 }
 
-func RegisterOrchestratorServer(s grpc.ServiceRegistrar, srv OrchestratorServer) {
-	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
-		t.testEmbeddedByValue()
+func RegisterOrchestratorServer(registrar grpc.ServiceRegistrar, service OrchestratorServer) {
+	if t, ok := service.(interface{ verifyEmbeddedByValue() }); ok {
+		t.verifyEmbeddedByValue()
 	}
-	s.RegisterService(&Orchestrator_ServiceDesc, srv)
+	registrar.RegisterService(&Orchestrator_ServiceDesc, service)
 }
 
-func _Orchestrator_Calculate_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(OrchestratorServer).Calculate(&grpc.GenericServerStream[AgentResponse, TaskRequest]{ServerStream: stream})
+func _Orchestrator_Calculate_Handler(service interface{}, serverStream grpc.ServerStream) error {
+	return service.(OrchestratorServer).Calculate(&grpc.GenericServerStream[AgentResponse, TaskRequest]{ServerStream: serverStream})
 }
 
 type Orchestrator_CalculateServer = grpc.BidiStreamingServer[AgentResponse, TaskRequest]
