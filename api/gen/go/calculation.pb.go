@@ -169,11 +169,20 @@ func file_calculation_proto_rawDescGZIP() []byte {
 }
 
 var file_calculation_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+
 var file_calculation_proto_goTypes = []any{
 	(*TaskRequest)(nil),
 	(*AgentResponse)(nil),
 }
-var file_calculation_proto_depIdxs = []int32{1, 0, 1, 0, 0, 0, 0,}
+var file_calculation_proto_depIdxs = []int32{
+	1,
+	0,
+	1,
+	0,
+	0,
+	0,
+	0,
+}
 
 func init() { file_calculation_proto_init() }
 func file_calculation_proto_init() {
