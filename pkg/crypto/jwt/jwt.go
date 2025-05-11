@@ -12,51 +12,52 @@ const (
 )
 
 func Generate(id int) (string, error) {
-	now := time.Now()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	currentTime := time.Now()
+	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"id":  id,
-		"nbf": now.Unix(), 
-		"exp": now.Add(10 * time.Minute).Unix(),
-		"iat": now.Unix(),
+		"nbf": currentTime.Unix(),
+		"exp": currentTime.Add(10 * time.Minute).Unix(),
+		"iat": currentTime.Unix(),
 	})
 
-	tokenString, err := token.SignedString([]byte(HmacSampleSecret))
+	signedToken, err := newToken.SignedString([]byte(HmacSampleSecret))
 	if err != nil {
-		log.Printf("jwt generation error: %v", err)
+		log.Printf("token generation failed: %v", err)
 		return "", err
 	}
 
-	return tokenString, nil
+	return signedToken, nil
 }
 
 func Verify(tokenString string) (bool, int) {
-	tokenFromString, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, isHMAC := token.Method.(*jwt.SigningMethodHMAC); !isHMAC {
+			return nil, fmt.Errorf("invalid signing method: %v", token.Header["alg"])
 		}
 
 		return []byte(HmacSampleSecret), nil
 	})
 
 	if err != nil {
-		log.Println(err)
+		log.Printf("token parsing error: %v", err)
 		return false, 0
 	}
 
-	if !tokenFromString.Valid {
-		log.Println("invalid token")
+	if !parsedToken.Valid {
+		log.Println("token is not valid")
 		return false, 0
 	}
 
-	if claims, ok := tokenFromString.Claims.(jwt.MapClaims); ok {
-		userID, ok := claims["id"].(float64)
-		if !ok {
-			log.Println("invalid user ID type")
+	if claims, isValid := parsedToken.Claims.(jwt.MapClaims); isValid {
+		userID, isIDValid := claims["id"].(float64)
+		if !isIDValid {
+			log.Println("invalid user ID format")
 			return false, 0
 		}
-		log.Println("user id: ", int(userID))
+		log.Printf("verified user ID: %d", int(userID))
 		return true, int(userID)
 	}
 
+	log.Println("invalid claims format")
 	return false, 0
 }
