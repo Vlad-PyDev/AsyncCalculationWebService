@@ -10,41 +10,17 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func (a *Agent) Connect() {
-	for {
-		conn, err := grpc.NewClient(
-			a.config.OrchestratorAddress,
-			grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-		if err != nil {
-			log.Printf("error connecting to the server: %v", err)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		client := pb.NewOrchestratorClient(conn)
-		err = handleStream(client)
-		conn.Close()
-
-		if err != nil {
-			log.Printf("stream error: %v", err)
-		}
-		time.Sleep(1 * time.Second)
-	}
-
-}
-
 func handleStream(client pb.OrchestratorClient) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := client.Calculate(ctx)
+	dataStream, err := client.Calculate(ctx)
 	if err != nil {
 		return err
 	}
 
-	done := make(chan struct{})
-	defer close(done)
+	completionChan := make(chan struct{})
+	defer close(completionChan)
 
 	go func() {
 		defer cancel()
@@ -52,20 +28,20 @@ func handleStream(client pb.OrchestratorClient) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-done:
+			case <-completionChan:
 				return
 			default:
-				task, err := stream.Recv()
+				receivedTask, err := dataStream.Recv()
 				if err != nil {
-					log.Printf("Receive error: %v", err)
+					log.Printf("Error receiving task: %v", err)
 					return
 				}
 
 				tasksCh <- &Task{
-					ID:   int(task.Id),
-					Arg1: task.Arg1,
-					Arg2: task.Arg2,
-					Type: task.Operator,
+					ID:   int(receivedTask.Id),
+					Arg1: receivedTask.Arg1,
+					Arg2: receivedTask.Arg2,
+					Type: receivedTask.Operator,
 				}
 			}
 		}
@@ -75,19 +51,19 @@ func handleStream(client pb.OrchestratorClient) error {
 		defer cancel()
 		for {
 			select {
-			case result := <-resultsCh:
-				err := stream.Send(&pb.AgentResponse{
-					Id:     int32(result.ID),
-					Result: float32(result.Result),
-					Error:  result.Error,
+			case taskResult := <-resultsCh:
+				err := dataStream.Send(&pb.AgentResponse{
+					Id:     int32(taskResult.ID),
+					Result: float32(taskResult.Result),
+					Error:  taskResult.Error,
 				})
 				if err != nil {
-					log.Printf("Send error: %v", err)
+					log.Printf("Error sending response: %v", err)
 					return
 				}
 			case <-ctx.Done():
 				return
-			case <-done:
+			case <-completionChan:
 				return
 			}
 		}
@@ -95,4 +71,27 @@ func handleStream(client pb.OrchestratorClient) error {
 
 	<-ctx.Done()
 	return ctx.Err()
+}
+
+func (a *Agent) Connect() {
+	for {
+		grpcConn, err := grpc.NewClient(
+			a.config.OrchestratorAddress,
+			grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+		if err != nil {
+			log.Printf("Failed to connect to server: %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		grpcClient := pb.NewOrchestratorClient(grpcConn)
+		streamErr := handleStream(grpcClient)
+		grpcConn.Close()
+
+		if streamErr != nil {
+			log.Printf("Stream processing error: %v", streamErr)
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
