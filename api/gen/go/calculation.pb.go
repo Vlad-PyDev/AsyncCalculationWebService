@@ -23,59 +23,59 @@ type TaskRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TaskRequest) Reset() {
-	*x = TaskRequest{}
-	mi := &file_calculation_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+func (msg *TaskRequest) ProtoReflect() protoreflect.Message {
+	metaInfo := &file_calculation_proto_msgTypes[0]
+	if msg != nil {
+		messageState := protoimpl.X.MessageStateOf(protoimpl.Pointer(msg))
+		if messageState.LoadMessageInfo() == nil {
+			messageState.StoreMessageInfo(metaInfo)
+		}
+		return messageState
+	}
+	return metaInfo.MessageOf(msg)
 }
 
-func (x *TaskRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
+func (msg *TaskRequest) Reset() {
+	*msg = TaskRequest{}
+	metaInfo := &file_calculation_proto_msgTypes[0]
+	messageState := protoimpl.X.MessageStateOf(protoimpl.Pointer(msg))
+	messageState.StoreMessageInfo(metaInfo)
+}
+
+func (msg *TaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(msg)
 }
 
 func (*TaskRequest) ProtoMessage() {}
 
-func (x *TaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_calculation_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (*TaskRequest) Descriptor() ([]byte, []int) {
+func (msg *TaskRequest) Descriptor() ([]byte, []int) {
 	return file_calculation_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *TaskRequest) GetId() int32 {
-	if x != nil {
-		return x.Id
+func (msg *TaskRequest) GetId() int32 {
+	if msg != nil {
+		return msg.Id
 	}
 	return 0
 }
 
-func (x *TaskRequest) GetArg1() string {
-	if x != nil {
-		return x.Arg1
+func (msg *TaskRequest) GetArg1() string {
+	if msg != nil {
+		return msg.Arg1
 	}
 	return ""
 }
 
-func (x *TaskRequest) GetArg2() string {
-	if x != nil {
-		return x.Arg2
+func (msg *TaskRequest) GetArg2() string {
+	if msg != nil {
+		return msg.Arg2
 	}
 	return ""
 }
 
-func (x *TaskRequest) GetOperator() string {
-	if x != nil {
-		return x.Operator
+func (msg *TaskRequest) GetOperator() string {
+	if msg != nil {
+		return msg.Operator
 	}
 	return ""
 }
@@ -89,52 +89,52 @@ type AgentResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AgentResponse) Reset() {
-	*x = AgentResponse{}
-	mi := &file_calculation_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+func (msg *AgentResponse) ProtoReflect() protoreflect.Message {
+	metaInfo := &file_calculation_proto_msgTypes[1]
+	if msg != nil {
+		messageState := protoimpl.X.MessageStateOf(protoimpl.Pointer(msg))
+		if messageState.LoadMessageInfo() == nil {
+			messageState.StoreMessageInfo(metaInfo)
+		}
+		return messageState
+	}
+	return metaInfo.MessageOf(msg)
 }
 
-func (x *AgentResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
+func (msg *AgentResponse) Reset() {
+	*msg = AgentResponse{}
+	metaInfo := &file_calculation_proto_msgTypes[1]
+	messageState := protoimpl.X.MessageStateOf(protoimpl.Pointer(msg))
+	messageState.StoreMessageInfo(metaInfo)
+}
+
+func (msg *AgentResponse) String() string {
+	return protoimpl.X.MessageStringOf(msg)
 }
 
 func (*AgentResponse) ProtoMessage() {}
 
-func (x *AgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_calculation_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (*AgentResponse) Descriptor() ([]byte, []int) {
+func (msg *AgentResponse) Descriptor() ([]byte, []int) {
 	return file_calculation_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *AgentResponse) GetId() int32 {
-	if x != nil {
-		return x.Id
+func (msg *AgentResponse) GetId() int32 {
+	if msg != nil {
+		return msg.Id
 	}
 	return 0
 }
 
-func (x *AgentResponse) GetResult() float32 {
-	if x != nil {
-		return x.Result
+func (msg *AgentResponse) GetResult() float32 {
+	if msg != nil {
+		return msg.Result
 	}
 	return 0
 }
 
-func (x *AgentResponse) GetError() string {
-	if x != nil {
-		return x.Error
+func (msg *AgentResponse) GetError() string {
+	if msg != nil {
+		return msg.Error
 	}
 	return ""
 }
@@ -174,6 +174,7 @@ var file_calculation_proto_goTypes = []any{
 	(*TaskRequest)(nil),
 	(*AgentResponse)(nil),
 }
+
 var file_calculation_proto_depIdxs = []int32{
 	1,
 	0,
@@ -184,15 +185,18 @@ var file_calculation_proto_depIdxs = []int32{
 	0,
 }
 
-func init() { file_calculation_proto_init() }
-func file_calculation_proto_init() {
+func init() {
+	setupCalculationProto()
+}
+
+func setupCalculationProto() {
 	if File_calculation_proto != nil {
 		return
 	}
-	type x struct{}
-	out := protoimpl.TypeBuilder{
+	type dummy struct{}
+	builder := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
-			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+			GoPackagePath: reflect.TypeOf(dummy{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_calculation_proto_rawDesc), len(file_calculation_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
@@ -203,7 +207,7 @@ func file_calculation_proto_init() {
 		DependencyIndexes: file_calculation_proto_depIdxs,
 		MessageInfos:      file_calculation_proto_msgTypes,
 	}.Build()
-	File_calculation_proto = out.File
+	File_calculation_proto = builder.File
 	file_calculation_proto_goTypes = nil
 	file_calculation_proto_depIdxs = nil
 }
